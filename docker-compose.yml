@@ -1,0 +1,18 @@
+version: '3.7'
+services:
+  web-app:
+    build: ./gui-webapp
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./gui-webapp:/usr/src/app
+    command: npm run start
+  executioner-worker:
+    build: ./executioner-worker
+    volumes:
+      - ./executioner-worker:/usr/src/app
+    depends_on:
+      - web-app
+    ports:
+      - "8000:8000"
+    command: flask run --host=0.0.0.0 --port=8000
