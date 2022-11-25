@@ -1,29 +1,51 @@
 import Head from "next/head";
 import Image from "next/image";
 import styles from "../styles/Home.module.css";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import React from "react";
 import { NextPage } from "next";
 import axios from "axios";
-
+import { io, Socket } from "socket.io-client";
+import { useRouter } from "next/router";
+import Swal from "sweetalert2";
 const Home: NextPage = () => {
   //code lines for the editor
   const [code, setCode] = useState("");
   const [output, setOutput] = useState(">>>");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [room, setRoom] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
 
+  const router = useRouter();
+  useEffect(() => {
+    setBaseUrl(window.location.origin.replace(":3000", ""));
+    console.log(window.location.origin.replace(":3000", ""));
+    if (router.query.room) {
+      setRoom(router.query.room as string);
+      // use current location
+      const sock = io(`${window.location.origin}:8000`);
+      sock.on("connect", () => {
+        console.log("connected");
+      });
+      sock.on("message", (msg) => {
+        setCode(msg);
+      });
+      sock.emit("join", { room: router.query.room });
+      setSocket(sock);
+      axios.post(`${window.location.origin.replace(":3000", "")}:8000/code_from_room`, {
+        room: router.query.room,
+      }).then((res) => {
+        setCode(res.data);
+      }
+      );
+    }
+  }, [router.query.room]);
   //function to handle the code submission
   const handleSubmit = async () => {
     setLoading(true);
-    // const res = await fetch("http://localhost:5000/eval", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify({ code: code }),
-    // });
-    const res = await axios.post("http://127.0.0.1:8000/eval", {
+    const res = await axios.post(`${baseUrl}:8000/eval`, {
       code: code,
     });
     setLoading(false);
@@ -35,6 +57,29 @@ const Home: NextPage = () => {
       setError("");
       setOutput((prev) => prev.slice(0, -1) + res.data + "\n>>>");
     }
+  };
+  const shareThisSession = async () => {
+    const randomRoomId = Math.random().toString(36).substring(2, 7);
+    setRoom(randomRoomId);
+    const sock = io(`${baseUrl}:8000`);
+    sock.on("connect", () => {
+      console.log("connected");
+    });
+    sock.emit("join", { room: randomRoomId, code: code });
+    sock.on("message", (msg) => {
+      setCode(msg);
+    });
+    setSocket(sock);
+    Swal.fire({
+      title: "Comparte este link con tus amigos :D",
+      text: `${window.location.origin}/?room=${randomRoomId}`,
+      icon: "success",
+      confirmButtonText: "Ok",
+    });
+  };
+
+  const sendToSocket = ({ codeToSend }: { codeToSend: string }) => {
+    socket?.emit("message", { message: codeToSend, room: room });
   };
   return (
     <div className="h-screen bg-gray-500">
@@ -51,16 +96,31 @@ const Home: NextPage = () => {
       </h1>
       <div className="flex flex-row h-5/6 justify-around">
         <div className="flex flex-col justify-center">
-          <button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            onClick={handleSubmit}
-          >
-            Run
-          </button>
+          <div className="flex flex-row justify-around">
+            <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              onClick={handleSubmit}
+            >
+              Run
+            </button>
+            {!socket && (
+              <button
+                className="bg-fuchsia-400 hover:bg-fuchsia-900 text-white font-bold py-2 px-4 rounded"
+                onClick={shareThisSession}
+              >
+                Share
+              </button>
+            )}
+          </div>
           <textarea
             className="w-96 h-5/6 border-2 border-gray-300 rounded-m font-mono flex-grow p-2"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => {
+              setCode(e.target.value);
+              if (socket) {
+                sendToSocket({ codeToSend: e.target.value });
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Tab") {
                 e.preventDefault();
@@ -70,11 +130,11 @@ const Home: NextPage = () => {
           />
         </div>
         <div className="flex flex-col justify-center">
-        <button
+          <button
             className="bg-red-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            onClick={()=>{
-              setOutput("")
-              setError("")
+            onClick={() => {
+              setOutput("");
+              setError("");
             }}
           >
             Clear
