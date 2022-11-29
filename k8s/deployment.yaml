@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rces-ucsp-k8s
+spec:
+  selector:
+    matchLabels:
+      app: rces-ucsp-k8s
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: rces-ucsp-k8s
+    spec:
+      containers:
+        - name: rces-ucsp-k8s-front
+          image: rafaelcanoguitton/gui
+          ports:
+            - containerPort: 3000
+        - name: rces-ucsp-k8s-back
+          image: rafaelcanoguitton/remote_worker
+          ports:
+            - containerPort: 8000

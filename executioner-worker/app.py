@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 from flask import request
 from flask_socketio import SocketIO, join_room, leave_room, send, emit
-import pexpect
+# import pexpect
 import subprocess
 
 app = Flask(__name__)
@@ -78,4 +78,4 @@ def on_connect():
 
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=8000)
+    socketio.run(app, debug=True, port=8000,allow_unsafe_werkzeug=True, host='0.0.0.0')

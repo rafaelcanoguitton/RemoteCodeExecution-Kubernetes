@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rces-ucsp-k8s
+spec:
+  selector:
+    app: rces-ucsp-k8s
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      name: front
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+      name: back
+  type: LoadBalancer
