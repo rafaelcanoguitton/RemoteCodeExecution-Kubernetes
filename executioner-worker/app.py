@@ -28,10 +28,12 @@ def eval():
     #     child.expect(pexpect.EOF)
     #     return '\n'.join(outputs)
     try:
-        return subprocess.check_output(['python', '-c', code])
+        subp = subprocess.Popen(['python3'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = subp.communicate(code.encode('utf-8'))
+        return err.decode('utf-8') if err else out.decode('utf-8')
     except Exception as e:
-        print(e)
-        return "Error"
+        return str(e)
+
 
 
 @app.route('/code_from_room', methods=['POST'])
@@ -78,4 +80,4 @@ def on_connect():
 
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=8000,allow_unsafe_werkzeug=True, host='0.0.0.0')
+    socketio.run(app,port=8000)

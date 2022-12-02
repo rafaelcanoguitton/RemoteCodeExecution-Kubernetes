@@ -8,6 +8,7 @@ import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import { useRouter } from "next/router";
 import Swal from "sweetalert2";
+import { useDebounce } from "usehooks-ts";
 const Home: NextPage = () => {
   //code lines for the editor
   const [code, setCode] = useState("");
@@ -17,20 +18,24 @@ const Home: NextPage = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [room, setRoom] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const messageTimeout = useRef(null);
 
+  const triggerHighlightFunction = useRef<() => void>(() => {});
   const router = useRouter();
   useEffect(() => {
-    setBaseUrl(window.location.origin.replace(":3000", ""));
-    console.log(window.location.origin.replace(":3000", ""));
+    triggerHighlightFunction.current();
+  }, [code]);
+  useEffect(() => {
     if (router.query.room) {
       setRoom(router.query.room as string);
       // use current location
-      const sock = io(`${window.location.origin}:8000`);
+      const sock = io(`${window.location.origin.replace(":3000", "")}:8000`);
       sock.on("connect", () => {
         console.log("connected");
       });
       sock.on("message", (msg) => {
         setCode(msg);
+        triggerHighlightFunction.current();
       });
       sock.emit("join", { room: router.query.room });
       setSocket(sock);
@@ -49,9 +54,12 @@ const Home: NextPage = () => {
   //function to handle the code submission
   const handleSubmit = async () => {
     setLoading(true);
-    const res = await axios.post(`${baseUrl}:8000/eval`, {
-      code: code,
-    });
+    const res = await axios.post(
+      `${window.location.origin.replace(":3000", "")}:8000/eval`,
+      {
+        code: code,
+      }
+    );
     setLoading(false);
     if (res.data.error) {
       setError(res.data.error);
@@ -213,6 +221,7 @@ const Home: NextPage = () => {
         //@ts-ignore
         $highlight.scrollTop = $textarea.scrollTop;
       };
+      triggerHighlightFunction.current = triggerHighlight;
       //@ts-ignore
       $textarea.addEventListener("input", triggerHighlight);
       //@ts-ignore
@@ -493,7 +502,7 @@ const Home: NextPage = () => {
       //@ts-ignore
       return tokens;
     }
-  }, [code]);
+  }, []);
   const shareThisSession = async () => {
     const randomRoomId = Math.random().toString(36).substring(2, 7);
     setRoom(randomRoomId);
@@ -504,6 +513,7 @@ const Home: NextPage = () => {
     sock.emit("join", { room: randomRoomId, code: code });
     sock.on("message", (msg) => {
       setCode(msg);
+      triggerHighlightFunction.current();
     });
     setSocket(sock);
     Swal.fire({
@@ -515,33 +525,35 @@ const Home: NextPage = () => {
   };
 
   const sendToSocket = ({ codeToSend }: { codeToSend: string }) => {
-    socket?.emit("message", { message: codeToSend, room: room });
+    console.log("im executed with", { codeToSend, socket });
+    //@ts-ignore
+    socket.emit("message", { message: codeToSend, room: room });
   };
   return (
-    <div className="h-screen bg-gray-500">
+    <div className="h-screen bg-gray-900">
       <Head>
-        <title>UCSP IDE</title>
+        <title></title>
         <meta
           name="description"
           content="Remote Code Execution App developed by UCSP students"
         />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <h1 className="text-center text-3xl font-bold font-mono bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+      <h1 className="text-center text-6xl font-bold font-mono text-white mb-10">
         UCSP IDE
       </h1>
       <div className="flex flex-row h-5/6 justify-around">
-        <div className="flex flex-col justify-center">
-          <div className="flex flex-row justify-around">
+        <div className="flex flex-col">
+          <div className="flex flex-row">
             <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full"
               onClick={handleSubmit}
             >
               Run
             </button>
             {!socket && (
               <button
-                className="bg-fuchsia-400 hover:bg-fuchsia-900 text-white font-bold py-2 px-4 rounded"
+                className="bg-fuchsia-400 hover:bg-fuchsia-900 text-white font-bold py-2 px-4 rounded w-full"
                 onClick={shareThisSession}
               >
                 Share
@@ -549,29 +561,34 @@ const Home: NextPage = () => {
             )}
           </div>
           <div id="content-box">
-          <textarea
-            //className="w-96 h-5/6 border-2 border-gray-300 rounded-m font-mono flex-grow p-2"
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-              if (socket) {
-                sendToSocket({ codeToSend: e.target.value });
-              }
-            }}
-            id="code"
-            onKeyDown={(e) => {
-              if (e.key === "Tab") {
-                e.preventDefault();
-                setCode(code + "\t");
-              }
-            }}
-            spellCheck={false}
-            wrap="soft"
-          />
-          <pre id="highlight-area"></pre>
+            <textarea
+              //className="w-96 h-5/6 border-2 border-gray-300 rounded-m font-mono flex-grow p-2"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                if (socket) {
+                  //@ts-ignore
+                  clearTimeout(messageTimeout.current);
+                  //@ts-ignore
+                  messageTimeout.current = setTimeout(() => {
+                    sendToSocket({ codeToSend: e.target.value });
+                  },200);
+                }
+              }}
+              id="code"
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  setCode(code + "\t");
+                }
+              }}
+              spellCheck={false}
+              wrap="soft"
+            />
+            <pre id="highlight-area"></pre>
           </div>
         </div>
-        <div className="flex flex-col justify-center">
+        <div className="flex flex-col justify-center w-full">
           <button
             className="bg-red-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
             onClick={() => {
@@ -582,9 +599,10 @@ const Home: NextPage = () => {
             Clear
           </button>
           <textarea
-            className="w-96 h-5/6 border-2 border-gray-300 rounded-m font-mono flex-grow p-2 bg-gray-800 text-gray-100"
+            className="h-5/6 border-2 border-gray-300 rounded-m font-mono flex-grow p-2 bg-gray-800 text-gray-100"
             value={output}
             onChange={(e) => setOutput(e.target.value)}
+            spellCheck={false}
           />
         </div>
       </div>
