@@ -15,18 +15,6 @@ current_code_per_room = {}
 @app.route('/eval', methods=['POST'])
 def eval():
     code = request.json['code']
-    # inputs =["a","!"]
-    # outputs = []
-    # child = pexpect.spawn('python3')
-    # try:
-    #     child.expect('>>>')
-    #     for line in code.splitlines():
-    #         child.sendline(line)
-    #         child.expect('>>>', timeout=1)
-    #         outputs.append(child.before.decode('utf-8'))
-    #     child.sendline('exit()')
-    #     child.expect(pexpect.EOF)
-    #     return '\n'.join(outputs)
     try:
         subp = subprocess.Popen(['python3'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = subp.communicate(code.encode('utf-8'))
